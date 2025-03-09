@@ -63,14 +63,14 @@ end
 local app = create_namespace("app", true)
 
 local function to_model_id(byte)
-	if byte > 100 then
+	if byte >= 100 then
 		return 100000 + byte - 100
 	end
 	return byte
 end
 
 local function to_byte(model_id)
-	if model_id > 100000 then
+	if model_id >= 100000 then
 		return model_id - 100000 + 100
 	end
 	return model_id
@@ -109,7 +109,7 @@ sdk.hook(
 
 local customModelId = "0"
 re.on_draw_ui(function()
-	if imgui.tree_node("Transmog") then
+	if imgui.tree_node("HookWeaponLayer") then
 		local current_weapon = current_main_weapon()
 		if not current_weapon then
 			imgui.text("Could not find current weapon")
