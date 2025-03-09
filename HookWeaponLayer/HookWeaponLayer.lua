@@ -63,15 +63,33 @@ end
 local app = create_namespace("app", true)
 
 local function to_model_id(byte)
+	if byte == 0 then
+		return -1
+	end
+	if byte == 255 then
+		return 0
+	end
 	if byte >= 100 then
 		return 100000 + byte - 100
+	end
+	if byte >= 50 then
+		return 10000 + byte - 50
 	end
 	return byte
 end
 
 local function to_byte(model_id)
+	if model_id == -1 then
+		return 0
+	end
+	if model_id == 0 then
+		return 255
+	end
 	if model_id >= 100000 then
 		return model_id - 100000 + 100
+	end
+	if model_id >= 10000 then
+		return model_id - 10000 + 50
 	end
 	return model_id
 end
@@ -87,18 +105,36 @@ local function weapon_data(work)
 	return app.WeaponUtil["getWeaponData(app.savedata.cEquipWork)"](nil, work)
 end
 
-local current_weapon = nil
-sdk.hook(app.PlayerManager.generateHunterCreateInfo, function(args)
-	current_weapon = sdk.to_managed_object(args[3])
-end, function(retval)
-	current_weapon = nil
-	return retval
-end)
+local function reset_all_weapons()
+	local save_data = app.SaveDataManager.Instance:getCurrentUserSaveData()
+	for _, obj in pairs(save_data._Equip._EquipBox) do
+		if obj:get_Category() == 1 then
+			obj.FreeVal5 = 0
+		end
+	end
+end
 
+local current_weapons = {}
+sdk.hook(
+	app.PlayerManager.generateHunterCreateInfo,
+	function(args)
+		current_weapons = { sdk.to_managed_object(args[4]), sdk.to_managed_object(args[3]) }
+	end, --
+	function(retval)
+		current_weapons = {}
+		return retval
+	end
+)
+
+local disable = false
 sdk.hook(
 	app.WeaponUtil["getModelId(app.user_data.WeaponData.cData, app.ArtianUtil.ArtianInfo)"],
 	function(args) end,
 	function(retval)
+		if disable then
+			return retval
+		end
+		local current_weapon = table.remove(current_weapons)
 		if current_weapon and current_weapon.FreeVal5 ~= 0 then
 			local ret = to_model_id(current_weapon.FreeVal5)
 			return sdk.to_ptr(ret)
@@ -119,9 +155,21 @@ re.on_draw_ui(function()
 			_, customModelId = imgui.input_text("Set Custom Model id", customModelId)
 			if imgui.button("Set") then
 				local id = tonumber(customModelId)
-				current_weapon.FreeVal5 = to_byte(id)
+				if id ~= nil then
+					current_weapon.FreeVal5 = to_byte(id)
+				end
 			end
-			object_explorer:handle_address(current_weapon)
+			if imgui.button("Reset") then
+				current_weapon.FreeVal5 = 0
+			end
+			if imgui.tree_node("Debug") then
+				imgui.text("FreeVal5:" .. tostring(current_weapon.FreeVal5))
+				_, disable = imgui.checkbox("Disable layering", disable)
+				if imgui.button("Reset All") then
+					reset_all_weapons()
+				end
+				imgui.tree_pop()
+			end
 		end
 		imgui.tree_pop()
 	end
